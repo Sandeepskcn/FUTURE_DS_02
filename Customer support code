@@ -1,0 +1,67 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from wordcloud import WordCloud
+from textblob import TextBlob
+import nltk
+from nltk.corpus import stopwords
+import re
+
+nltk.download('stopwords')
+csv_file_path = "customer_support_tickets.csv"
+df = pd.read_csv(csv_file_path)
+
+print(df.head())
+
+df['Ticket Description'] = df['Ticket Description'].astype(str).str.lower().apply(lambda x: re.sub(r'[^\w\s]', '', x))
+
+df_clean = df.dropna(subset=['Ticket Description'])
+
+df_clean['Polarity'] = df_clean['Ticket Description'].apply(lambda x: TextBlob(x).sentiment.polarity)
+df_clean['Sentiment'] = df_clean['Polarity'].apply(lambda x: 'Positive' if x > 0 else ('Negative' if x < 0 else 'Neutral'))
+
+plt.figure(figsize=(8,4))
+sns.countplot(data=df, y='Ticket Type', order=df['Ticket Type'].value_counts().index, palette='Set2')
+plt.title("Most Common Ticket Types")
+plt.tight_layout()
+plt.show()
+
+text = " ".join(df_clean['Ticket Description'].astype(str).tolist())
+wordcloud = WordCloud(
+    width=800,
+    height=400,
+    background_color='white',
+    stopwords=set(stopwords.words('english'))
+).generate(text)
+
+plt.figure(figsize=(10, 5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis("off")
+plt.title("Common Words in Ticket Descriptions")
+plt.show()
+
+plt.figure(figsize=(6,4))
+sns.countplot(data=df, x='Ticket Priority', order=['Low','Medium','High','Critical'], palette='Set1')
+plt.title("Ticket Priority Distribution")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(6,4))
+sns.countplot(data=df_clean, x='Sentiment', palette='coolwarm')
+plt.title("Customer Sentiment Based on Descriptions")
+plt.tight_layout()
+plt.show()
+
+resolved = df.dropna(subset=['Time to Resolution', 'First Response Time']).copy()
+resolved['Time to Resolution'] = pd.to_datetime(resolved['Time to Resolution'], errors='coerce')
+resolved['First Response Time'] = pd.to_datetime(resolved['First Response Time'], errors='coerce')
+resolved = resolved.dropna(subset=['Time to Resolution', 'First Response Time'])
+
+resolved['Resolution Hours'] = (resolved['Time to Resolution'] - resolved['First Response Time']).dt.total_seconds() / 3600
+
+plt.figure(figsize=(8,4))
+sns.histplot(resolved['Resolution Hours'], bins=30, kde=True)
+plt.title("Resolution Time Distribution (in hours)")
+plt.xlabel("Hours")
+plt.tight_layout()
+plt.show()
